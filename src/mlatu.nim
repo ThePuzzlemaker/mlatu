@@ -16,7 +16,7 @@ type
     index*: int
     message*: string
 
-  TokKind = enum TokWord, TokLeftParen, TokRightParen, TokEqual, TokNum
+  TokKind = enum TokWord, TokLeftParen, TokRightParen, TokEqual, TokNum, TokBool
 
   Tok = object
     start: int
@@ -24,45 +24,74 @@ type
     case kind: TokKind
       of TokWord: word: string
       of TokNum: num: int
-      of TokLeftParen, TokRightParen, TokEqual: discard
+      of TokBool: bool: bool
+      of TokLeftParen, TokRightParen:
+        depth: int
+      of TokEqual: discard
 
-  ValueKind = enum ValueNum, ValueQuot
+  ValueKind = enum ValueNum, ValueBool, ValueQuot
 
   Value = object
     case kind: ValueKind:
       of ValueNum: num: int
+      of ValueBool: bool: bool
       of ValueQuot: toks: seq[Tok]
 
   Stack* = seq[Value]
 
+func `==`(a, b: Tok): bool =
+  case a.kind:
+    of TokWord: return b.kind == TokWord and a.word == b.word
+    of TokNum: return b.kind == TokNum and a.num == b.num
+    of TokBool: return b.kind == TokBool and a.bool == b.bool
+    of TokLeftParen: return b.kind == TokLeftParen
+    of TokRightParen: return b.kind == TokRightParen
+    of TokEqual: return b.kind == TokEqual
+
+func `==`(a, b: Value): bool =
+  case a.kind:
+    of ValueNum: return b.kind == ValueNum and a.num == b.num
+    of ValueQuot: return b.kind == ValueQuot and a.toks == b.toks
+    of ValueBool: return b.kind == ValueBool and a.bool == b.bool
+
 func parse_word(input: string, start: int, stop: int): Tok =
-  try: Tok(start: start, stop: stop, kind: TokNum, num: input.parse_int)
-  except ValueError: Tok(start: start, stop: stop, kind: TokWord, word: input)
+  try: Tok(kind: TokNum, num: input.parse_int, start: start, stop: stop)
+  except ValueError: Tok(kind: TokWord, word: input, start: start, stop: stop)
 
 func parse*(input: string): seq[Tok] =
   var acc: string
-  var acc_start: int = 0
+  var acc_index: int = 0
+  var depth: int = 0
   var index: int = 0
   while index < input.len:
     let c = input[index]
     if c in {' ', '\t', '\v', '\c', '\n', '\f', '(', ')', '='}:
       if acc.len > 0:
-        result.add acc.parse_word(acc_start, index - 1)
+        result.add acc.parse_word(acc_index, index)
         acc = ""
-      if c == '(': result.add Tok(start: index, stop: index, kind: TokLeftParen)
-      elif c == ')': result.add Tok(start: index, stop: index,
-          kind: TokRightParen)
-      elif c == '=': result.add Tok(start: index, stop: index, kind: TokEqual)
+      if c == '(':
+        result.add Tok(kind: TokLeftParen, depth: depth, start: index, stop: index)
+        depth.inc
+      elif c == ')':
+        depth.dec
+        result.add Tok(kind: TokRightParen, depth: depth, start: index, stop: index)
+      elif c == '=': result.add Tok(kind: TokEqual, start: index, stop: index)
     else:
-      if acc == "": acc_start = index
+      if acc == "": acc_index = index
       acc.add c
     index.inc
-  if acc.len > 0: result.add acc.parse_word(acc_start, index - 1)
+  if acc.len > 0: result.add acc.parse_word(acc_index, index)
+  while depth > 0:
+    depth.dec
+    result.add Tok(kind: TokRightParen, depth: depth, start: index, stop: index)
 
 func new_stack*(): Stack = @[]
 
 func push_num(stack: var Stack, value: int) {.raises: [].} =
   stack.add Value(kind: ValueNum, num: value)
+
+func push_bool(stack: var Stack, value: bool) {.raises: [].} =
+  stack.add Value(kind: ValueBool, bool: value)
 
 func push_quot(stack: var Stack, toks: seq[Tok]) {.raises: [].} =
   stack.add Value(kind: ValueQuot, toks: toks)
@@ -88,6 +117,15 @@ func pop_quot(stack: var Stack, index: int): seq[Tok] {.raises: [EvalError].} =
   except IndexDefect: discard
   raise EvalError(index: index, message: "expected quotation on the stack")
 
+func pop_bool(stack: var Stack, index: int): bool {.raises: [EvalError].} =
+  try:
+    let top = stack.pop
+    case top.kind:
+      of ValueBool: return top.bool
+      else: discard
+  except IndexDefect: discard
+  raise EvalError(index: index, message: "expected boolean on the stack")
+
 func pop_val(stack: var Stack, index: int): Value {.raises: [EvalError].} =
   try:
     return stack.pop
@@ -97,6 +135,7 @@ func pop_val(stack: var Stack, index: int): Value {.raises: [EvalError].} =
 func unparse(value: Value): seq[Tok] {.raises: [].} =
   case value.kind:
     of ValueNum: result.add Tok(kind: TokNum, num: value.num)
+    of ValueBool: result.add Tok(kind: TokBool, bool: value.bool)
     of ValueQuot:
       result.add Tok(kind: TokLeftParen)
       result &= value.toks
@@ -123,10 +162,9 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
       of EvalTop:
         case tok.kind:
           of TokLeftParen:
-            mode = EvalMode(kind: EvalQuot, toks: @[], depth: 0)
-          of TokRightParen:
-            raise EvalError(index: tok.start,
-                message: "expected `(` before `)`")
+            mode = EvalMode(kind: EvalQuot, toks: @[], depth: tok.depth)
+          of TokRightParen: raise EvalError(index: tok.start,
+              message: "Expected `(` before `)`")
           of TokEqual:
             let body = stack.pop_quot tok.start
             try:
@@ -140,8 +178,44 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
             raise EvalError(index: tok.stop,
                 message: "expected word name after `=`")
           of TokNum: stack.push_num tok.num
+          of TokBool: stack.push_bool tok.bool
           of TokWord:
             case tok.word:
+              of "true":
+                stack.push_bool true
+              of "false":
+                stack.push_bool false
+              of "and":
+                let a = stack.pop_bool tok.start
+                let b = stack.pop_bool tok.start
+                stack.push_bool(a and b)
+              of "not":
+                let a = stack.pop_bool tok.start
+                stack.push_bool(not a)
+              of "or":
+                let a = stack.pop_bool tok.start
+                let b = stack.pop_bool tok.start
+                stack.push_bool(a or b)
+              of "gt":
+                let a = stack.pop_num tok.start
+                let b = stack.pop_num tok.start
+                stack.push_bool(b > a)
+              of "geq":
+                let a = stack.pop_num tok.start
+                let b = stack.pop_num tok.start
+                stack.push_bool(b >= a)
+              of "lt":
+                let a = stack.pop_num tok.start
+                let b = stack.pop_num tok.start
+                stack.push_bool(b < a)
+              of "leq":
+                let a = stack.pop_num tok.start
+                let b = stack.pop_num tok.start
+                stack.push_bool(b <= a)
+              of "eq":
+                let a = stack.pop_val tok.start
+                let b = stack.pop_val tok.start
+                stack.push_bool(a == b)
               of "+":
                 let a = stack.pop_num tok.start
                 let b = stack.pop_num tok.start
@@ -194,20 +268,32 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
                 stack.push_val a
                 stack.push_val b
                 stack.push_val c
+              of "i":
+                stack.eval(state, stack.pop_quot tok.start)
+              of "if":
+                let a = stack.pop_quot tok.start
+                let b = stack.pop_quot tok.start
+                let c = stack.pop_bool tok.start
+
+                if c:
+                  stack.eval(state, b)
+                else:
+                  stack.eval(state, a)
+              of "cons":
+                let a = stack.pop_quot tok.start
+                let b = stack.pop_val(tok.start).unparse
+                stack.push_quot(b & a)
               else:
-                try: stack.eval(state, state[tok.word])
+                try:
+                  stack.eval(state, state[tok.word])
                 except KeyError:
-                  if toks.len > 0:
-                    raise EvalError(index: tok.start,
-                        message: "this word is unknown")
+                  raise EvalError(index: tok.start, message: "Unknown word `" &
+                      tok.word & "`")
       of EvalQuot:
-        if tok.kind == TokRightParen:
-          if mode.depth > 0: mode.depth.dec
-          else:
-            stack.push_quot mode.toks
-            mode = EvalMode(kind: EvalTop)
+        if tok.kind == TokRightParen and tok.depth == mode.depth:
+          stack.push_quot mode.toks
+          mode = EvalMode(kind: EvalTop)
         else:
-          if tok.kind == TokLeftParen: mode.depth.inc
           mode.toks.add tok
   if mode.kind == EvalQuot:
     stack.push_quot mode.toks
@@ -216,6 +302,7 @@ func `$`(tok: Tok): string =
   case tok.kind:
     of TokWord: tok.word
     of TokNum: $tok.num
+    of TokBool: $tok.bool
     of TokEqual: "="
     of TokLeftParen: "("
     of TokRightParen: ")"
