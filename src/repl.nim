@@ -8,7 +8,8 @@
 #
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
-import strutils, unicode, window_manager, termdiff, utils, ui_utils, mlatu
+import strutils, sequtils, unicode
+import window_manager, termdiff, utils, ui_utils, lang/interpreter, lang/scanner, lang/parser
 
 type
   OutputKind = enum Ok, Err
@@ -21,6 +22,7 @@ type
 
   Input = object
     entry: Entry
+    tokens: seq[Tok]
     output: Output
     out_state: EvalState
 
@@ -60,10 +62,10 @@ func get_in_state(repl: Repl, index: int): EvalState {.raises: [], tags: [].} =
 
 func update_input(repl: Repl, index: int, in_state: EvalState) {.raises: [],
     tags: [].} =
-  let terms = ($repl.inputs[index].entry.text).parse
   try:
     repl.inputs[index].out_state = in_state
     var stack: Stack = new_stack()
+    let terms = repl.inputs[index].tokens.parse
     stack.eval(repl.inputs[index].out_state, terms, 0, "")
     repl.inputs[index].output = Output(kind: Ok, stack: stack.display_stack)
     if (index + 1) < repl.inputs.len:
@@ -71,31 +73,39 @@ func update_input(repl: Repl, index: int, in_state: EvalState) {.raises: [],
   except EvalError as e:
     repl.inputs[index].output = Output(kind: Err, index: e.index,
         message: e.message)
+  except ParseError as e:
+    repl.inputs[index].output = Output(kind: Err, index: e.index,
+        message: e.message)
 
 method process_key*(repl: Repl, key: Key) {.locks: "unknown", tags: [].} =
   case key.kind:
     of KeyReturn:
+      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.inputs.insert(repl.make_input, repl.selected + 1)
       repl.selected += 1
+      return
     of KeyArrowDown:
+      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.selected += 1
       if repl.selected >= repl.inputs.len:
         repl.selected = repl.inputs.len - 1
+      return
     of KeyArrowUp:
+      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.selected -= 1
       if repl.selected < 0:
         repl.selected = 0
+      return
     of KeyDelete, KeyBackspace:
       if repl.inputs[repl.selected].entry.text.len == 0 and repl.selected > 0:
         repl.inputs.delete(repl.selected)
         if repl.selected >= repl.inputs.len:
           repl.selected -= 1
-      else:
-        repl.inputs[repl.selected].entry.process_key key
-        repl.update_input repl.selected, repl.get_in_state repl.selected
-    else:
-      repl.inputs[repl.selected].entry.process_key key
-      repl.update_input repl.selected, repl.get_in_state repl.selected
+        return
+    else: discard
+  repl.inputs[repl.selected].entry.process_key key
+  repl.inputs[repl.selected].tokens  = ($repl.inputs[repl.selected].entry.text).scan
+  repl.update_input repl.selected, repl.get_in_state repl.selected
 
 func input_number(repl: Repl, n: int): string =
   return "[" & strutils.align($n, ($repl.inputs.len).len) & "]"
@@ -123,9 +133,9 @@ method render*(repl: Repl, box: Box, ren: var TermRenderer) =
 
     case input.output.kind:
       of Ok:
-        ren.put input.output.stack, (if it == repl.selected: bright_blue() else: magenta())
+        ren.put input.output.stack, (if it == repl.selected: magenta() else: bright_blue())
       of Err:
-        let text = repeat('-', input.output.index + 1) & "^ " &
+        let text = repeat('-', input.output.index) & "^ " &
             input.output.message
         ren.put text, red()
 
