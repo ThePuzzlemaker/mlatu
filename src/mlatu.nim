@@ -16,26 +16,25 @@ type
     index*: int
     message*: string
 
-  TokKind = enum TokWord, TokLeftParen, TokRightParen, TokEqual, TokNum, TokBool
+  TokKind = enum TokWord, TokLeftParen, TokRightParen, TokNum, TokSym
 
   Tok = object
     start: int
     stop: int
     case kind: TokKind
-      of TokWord: word: string
+      of TokWord, TokSym: word: string
       of TokNum: num: int
-      of TokBool: bool: bool
       of TokLeftParen, TokRightParen:
         depth: int
-      of TokEqual: discard
 
-  ValueKind = enum ValueNum, ValueBool, ValueQuot
+  ValueKind = enum ValueNum, ValueBool, ValueQuot, ValueSym
 
   Value = object
     case kind: ValueKind:
       of ValueNum: num: int
       of ValueBool: bool: bool
       of ValueQuot: toks: seq[Tok]
+      of ValueSym: word: string
 
   Stack* = seq[Value]
 
@@ -43,20 +42,22 @@ func `==`(a, b: Tok): bool =
   case a.kind:
     of TokWord: return b.kind == TokWord and a.word == b.word
     of TokNum: return b.kind == TokNum and a.num == b.num
-    of TokBool: return b.kind == TokBool and a.bool == b.bool
+    of TokSym: return b.kind == TokSym and a.word == b.word
     of TokLeftParen: return b.kind == TokLeftParen
     of TokRightParen: return b.kind == TokRightParen
-    of TokEqual: return b.kind == TokEqual
 
 func `==`(a, b: Value): bool =
   case a.kind:
     of ValueNum: return b.kind == ValueNum and a.num == b.num
     of ValueQuot: return b.kind == ValueQuot and a.toks == b.toks
     of ValueBool: return b.kind == ValueBool and a.bool == b.bool
+    of ValueSym: return b.kind == ValueSym and a.word == b.word
 
 func parse_word(input: string, start: int, stop: int): Tok =
   try: Tok(kind: TokNum, num: input.parse_int, start: start, stop: stop)
-  except ValueError: Tok(kind: TokWord, word: input, start: start, stop: stop)
+  except ValueError: 
+    if input[0] == ':': Tok(kind: TokSym, word: input[1..input.high], start: start, stop: stop)
+    else: Tok(kind: TokWord, word: input, start: start, stop: stop)
 
 func parse*(input: string): seq[Tok] =
   var acc: string
@@ -65,7 +66,7 @@ func parse*(input: string): seq[Tok] =
   var index: int = 0
   while index < input.len:
     let c = input[index]
-    if c in {' ', '\t', '\v', '\c', '\n', '\f', '(', ')', '='}:
+    if c in {' ', '\t', '\v', '\c', '\n', '\f', '(', ')'}:
       if acc.len > 0:
         result.add acc.parse_word(acc_index, index)
         acc = ""
@@ -75,7 +76,6 @@ func parse*(input: string): seq[Tok] =
       elif c == ')':
         depth.dec
         result.add Tok(kind: TokRightParen, depth: depth, start: index, stop: index)
-      elif c == '=': result.add Tok(kind: TokEqual, start: index, stop: index)
     else:
       if acc == "": acc_index = index
       acc.add c
@@ -96,6 +96,9 @@ func push_bool(stack: var Stack, value: bool) {.raises: [].} =
 func push_quot(stack: var Stack, toks: seq[Tok]) {.raises: [].} =
   stack.add Value(kind: ValueQuot, toks: toks)
 
+func push_sym(stack: var Stack, word: string) {.raises: [].} =
+  stack.add Value(kind: ValueSym, word: word)
+
 func push_val(stack: var Stack, value: Value) {.raises: [].} =
   stack.add value
 
@@ -113,9 +116,19 @@ func pop_quot(stack: var Stack, index: int): seq[Tok] {.raises: [EvalError].} =
     let top = stack.pop
     case top.kind:
       of ValueQuot: return top.toks
+      of ValueSym: return @[Tok(kind: TokSym, word: top.word)]
       else: discard
   except IndexDefect: discard
   raise EvalError(index: index, message: "expected quotation on the stack")
+
+func pop_sym(stack: var Stack, index: int): string {.raises: [EvalError].} =
+  try:
+    let top = stack.pop
+    case top.kind:
+      of ValueSym: return top.word
+      else: discard
+  except IndexDefect: discard
+  raise EvalError(index: index, message: "expected symbol on the stack")
 
 func pop_bool(stack: var Stack, index: int): bool {.raises: [EvalError].} =
   try:
@@ -135,7 +148,8 @@ func pop_val(stack: var Stack, index: int): Value {.raises: [EvalError].} =
 func unparse(value: Value): seq[Tok] {.raises: [].} =
   case value.kind:
     of ValueNum: result.add Tok(kind: TokNum, num: value.num)
-    of ValueBool: result.add Tok(kind: TokBool, bool: value.bool)
+    of ValueBool: result.add Tok(kind: TokWord, word: $value.bool)
+    of ValueSym: result.add Tok(kind: TokSym, word: value.word)
     of ValueQuot:
       result.add Tok(kind: TokLeftParen)
       result &= value.toks
@@ -167,22 +181,14 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok], called: int, 
             mode = EvalMode(kind: EvalQuot, toks: @[], depth: tok.depth)
           of TokRightParen: raise EvalError(index: tok.start,
               message: "Expected `(` before `)`")
-          of TokEqual:
-            let body = stack.pop_quot tok.start
-            try:
-              let tok = toks.pop
-              case tok.kind:
-                of TokWord:
-                  state[tok.word] = body
-                  continue
-                else: discard
-            except IndexDefect: discard
-            raise EvalError(index: tok.stop,
-                message: "expected word name after `=`")
           of TokNum: stack.push_num tok.num
-          of TokBool: stack.push_bool tok.bool
+          of TokSym: stack.push_sym tok.word
           of TokWord:
             case tok.word:
+              of "def":
+                let body = stack.pop_quot tok.start
+                let name = stack.pop_sym tok.start
+                state[name] =  body
               of "true":
                 stack.push_bool true
               of "false":
@@ -304,9 +310,8 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok], called: int, 
 func `$`(tok: Tok): string =
   case tok.kind:
     of TokWord: tok.word
+    of TokSym: ":" & tok.word
     of TokNum: $tok.num
-    of TokBool: $tok.bool
-    of TokEqual: "="
     of TokLeftParen: "("
     of TokRightParen: ")"
 
