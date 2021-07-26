@@ -152,7 +152,9 @@ type
         toks: seq[Tok]
         depth: int
 
-func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
+const RECURSION_LIMIT = 1000
+
+func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok], called: int, caller: string) {.raises: [
     EvalError], tags: [].} =
   var mode = EvalMode(kind: EvalTop)
   var toks = toks.reversed()
@@ -245,7 +247,7 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
               of "dip":
                 let a = stack.pop_quot tok.start
                 let b = stack.pop_val tok.start
-                stack.eval state, a
+                stack.eval state, a, 0, ""
                 stack.push_val b
               of "rollup":
                 let a = stack.pop_val tok.start
@@ -269,23 +271,24 @@ func eval*(stack: var Stack, state: var EvalState, toks: seq[Tok]) {.raises: [
                 stack.push_val b
                 stack.push_val c
               of "i":
-                stack.eval(state, stack.pop_quot tok.start)
+                stack.eval(state, stack.pop_quot tok.start, 0, "")
               of "if":
                 let a = stack.pop_quot tok.start
                 let b = stack.pop_quot tok.start
                 let c = stack.pop_bool tok.start
 
                 if c:
-                  stack.eval(state, b)
+                  stack.eval(state, b, 0, "")
                 else:
-                  stack.eval(state, a)
+                  stack.eval(state, a, 0, "")
               of "cons":
                 let a = stack.pop_quot tok.start
                 let b = stack.pop_val(tok.start).unparse
                 stack.push_quot(b & a)
               else:
                 try:
-                  stack.eval(state, state[tok.word])
+                  if called > RECURSION_LIMIT: raise EvalError(index: tok.start, message: "recursion limit reached")
+                  stack.eval(state, state[tok.word], if caller == tok.word: called + 1 else: 0, tok.word)
                 except KeyError:
                   raise EvalError(index: tok.start, message: "Unknown word `" &
                       tok.word & "`")
@@ -317,7 +320,7 @@ proc eval_prelude(): EvalState {.raises: [], tags: [].} =
   var stack: Stack = @[]
   let toks = "../prelude.mlt".static_read.parse
   try:
-    stack.eval result, toks
+    stack.eval result, toks, 0, ""
     if stack.len > 0:
       raise newException(Defect, ("Prelude is ill-formed: stack contained items after evaluation (" &
           stack.display_stack & ")"))

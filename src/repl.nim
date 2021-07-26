@@ -64,7 +64,7 @@ func update_input(repl: Repl, index: int, in_state: EvalState) {.raises: [],
   try:
     repl.inputs[index].out_state = in_state
     var stack: Stack = new_stack()
-    stack.eval(repl.inputs[index].out_state, terms)
+    stack.eval(repl.inputs[index].out_state, terms, 0, "")
     repl.inputs[index].output = Output(kind: Ok, stack: stack.display_stack)
     if (index + 1) < repl.inputs.len:
       repl.update_input(index + 1, repl.inputs[index].out_state)
