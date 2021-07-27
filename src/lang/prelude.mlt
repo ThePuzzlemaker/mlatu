@@ -3,14 +3,30 @@
 :cons       ( cake pop ) def
 :i          ( (()) dip k ) def
 :dup        ( () cake dip dip ) def
-:cat        ( ( :i dip i ) cons cons) def
+:rep        ( dup ( i ) dip i ) def
+:run        ( dup ( i ) dip ) def
+:m          ( dup i ) def
+:cat        ( ( ( i ) dip i ) cons cons ) def
 :unit       ( () cons ) def
 :swap       ( unit dip ) def
-:popd       ( :pop dip ) def
-:dupd       ( :dup dip ) def
-:rollupd    ( :rollup dip ) def
-:rolldownd  ( :rolldown dip ) def
-:rotated    ( :rotate dip ) def
+:z          ( swap k ) def
+:popd       ( ( pop ) dip ) def
+:dupd       ( ( dup ) dip ) def
+:swapd      ( ( swap ) dip ) def
+:dup2       ( dupd dup swapd ) def
+:pop2       ( pop pop ) def
+:swat       ( swap cat ) def
+:i2         ( ( dip ) dip i ) def
+:dipd       ( ( dip ) cons dip ) def
+:dip2       ( ( dip ) cons dip ) def
+:dip3       ( ( dip2 ) cons dip ) def
+:rollup     ( swap swapd ) def
+:rolldown   ( swapd swap ) def
+:rotate     ( swapd swap swapd ) def
+:rollupd    ( ( rollup ) dip ) def
+:rolldownd  ( ( rolldown ) dip ) def
+:rotated    ( ( rotate ) dip ) def
+
 :pred       ( 1 - ) def
 :succ       ( 1 + ) def
 :neq        ( eq not ) def

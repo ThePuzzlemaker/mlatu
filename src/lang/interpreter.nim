@@ -167,27 +167,6 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int
                 let a = stack.pop_num term.start
                 let b = stack.pop_num term.start
                 stack.push_num(b /% a)
-              of "rollup":
-                let a = stack.pop_val term.start
-                let b = stack.pop_val term.start
-                let c = stack.pop_val term.start
-                stack.push_val a
-                stack.push_val c
-                stack.push_val b
-              of "rolldown":
-                let a = stack.pop_val term.start
-                let b = stack.pop_val term.start
-                let c = stack.pop_val term.start
-                stack.push_val b
-                stack.push_val a
-                stack.push_val c
-              of "rotate":
-                let a = stack.pop_val term.start
-                let b = stack.pop_val term.start
-                let c = stack.pop_val term.start
-                stack.push_val a
-                stack.push_val b
-                stack.push_val c
               of "if":
                 let a = stack.pop_quot term.start
                 let b = stack.pop_quot term.start
