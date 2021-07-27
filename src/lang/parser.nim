@@ -13,24 +13,22 @@ import scanner, strutils, sequtils
 
 type
   ParseError* = ref object of ValueError
-    index*: int
+    origin*: Origin
     message*: string
 
-  TermKind* = enum TermLit, TermQuote, TermWord, TermSym
+  TermKind* = enum TermLit, TermQuote, TermWord
 
   Term* = object
-    start*: int
-    stop*: int
+    origin*: Origin
     case kind*: TermKind:
       of TermLit: lit*: Lit
       of TermQuote: inner*: seq[Term]
-      of TermWord, TermSym: word*: string
+      of TermWord: word*: string
 
 func `==`*(a, b: Term): bool =
   case a.kind:
     of TermWord: return b.kind == TermWord and a.word == b.word
     of TermLit: return b.kind == TermLit and a.lit == b.lit
-    of TermSym: return b.kind == TermSym and a.word == b.word
     of TermQuote: return b.kind == TermQuote and a.inner == b.inner
 
 func parse_quot(toks: seq[Tok]): (seq[Term], seq[Tok]) =
@@ -45,12 +43,11 @@ func parse_quot(toks: seq[Tok]): (seq[Term], seq[Tok]) =
         let (inner, new_toks) = parse_quot(toks[index..toks.high])
         index = 0
         toks = new_toks
-        acc.add Term(kind: TermQuote, inner: inner)
+        acc.add Term(kind: TermQuote, inner: inner, origin: tok.origin)
       of TokRightParen:
         return (acc, toks[index..toks.high])
-      of TokLit: acc.add Term(kind: TermLit, lit: tok.lit, start: tok.start, stop: tok.stop)
-      of TokSym: acc.add Term(kind: TermSym, word: tok.word, start: tok.start, stop: tok.stop)
-      of TokWord: acc.add Term(kind: TermWord, word: tok.word, start: tok.start, stop: tok.stop)
+      of TokLit: acc.add Term(kind: TermLit, lit: tok.lit, origin: tok.origin)
+      of TokWord: acc.add Term(kind: TermWord, word: tok.word, origin: tok.origin)
   return (acc, @[])
 
 func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
@@ -66,15 +63,13 @@ func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
         toks = new_toks
         result.add Term(kind: TermQuote, inner: inner)
       of TokRightParen:
-        raise ParseError(index: tok.start, message: "Expected `(` before `)`")
-      of TokLit: result.add Term(kind: TermLit, lit: tok.lit, start: tok.start, stop: tok.stop)
-      of TokSym: result.add Term(kind: TermSym, word: tok.word, start: tok.start, stop: tok.stop)
-      of TokWord: result.add Term(kind: TermWord, word: tok.word, start: tok.start, stop: tok.stop)
+        raise ParseError(origin: tok.origin, message: "Expected `(` before `)`")
+      of TokLit: result.add Term(kind: TermLit, lit: tok.lit, origin: tok.origin)
+      of TokWord: result.add Term(kind: TermWord, word: tok.word, origin: tok.origin)
 
 func `$`*(term: Term): string =
   case term.kind:
     of TermWord: return term.word
-    of TermSym: return ":" & term.word
     of TermLit: return $term.lit
     of TermQuote:
       result &= "( "

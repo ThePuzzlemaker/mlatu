@@ -10,11 +10,11 @@
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
 
-import parser, strutils, sequtils, options, sugar, tables
+import scanner, parser, strutils, sequtils, options, sugar, tables
 
 type
   SpecError* = ref object of ValueError
-    index*: int
+    origin*: Origin
     message*: string
 
   Spec = Option[int]
@@ -28,7 +28,7 @@ func `$`*(spec: Spec): string =
 
 func infer(term: Term, state: WordTable): (Spec, Spec) =
   case term.kind:
-    of TermLit, TermSym, TermQuote: 
+    of TermLit, TermQuote: 
       return (some(0), some(1))
     of TermWord: 
       case term.word:
@@ -76,7 +76,7 @@ func unify*(actual, expected: Spec, term: Term) {.raises: [SpecError].} =
   if actual.is_some and expected.is_some:
     if actual.get == expected.get: discard
     elif actual.get + 1 == expected.get:
-      raise SpecError(index: term.start, message: "'" & $term & "' expects an additional item on the stack")
+      raise SpecError(origin: term.origin, message: "'" & $term & "' expects an additional item on the stack")
     else:
-      raise SpecError(index: term.start, message: "'" & $term & "' expects " & $expected & " here but got " & $actual)
+      raise SpecError(origin: term.origin, message: "'" & $term & "' expects " & $expected & " here but got " & $actual)
       

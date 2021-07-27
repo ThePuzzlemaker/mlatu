@@ -17,7 +17,7 @@ type
     case kind: OutputKind:
       of Ok: stack: string
       of Err:
-        index: int
+        origin: Origin
         message: string
 
   Input = object
@@ -74,14 +74,14 @@ func update_input(repl: Repl, index: int, in_state: WordTable) {.raises: [],
     if (index + 1) < repl.inputs.len:
       repl.update_input(index + 1, repl.inputs[index].out_state)
   except ParseError as e:
-    repl.inputs[index].output = Output(kind: Err, index: e.index,
-        message: e.message)
+    repl.inputs[index].output = 
+      Output(kind: Err, origin: e.origin, message: e.message)
   except SpecError as e:
-    repl.inputs[index].output = Output(kind: Err, index: e.index,
-        message: e.message)
+    repl.inputs[index].output = 
+      Output(kind: Err, origin: e.origin, message: e.message)
   except EvalError as e:
-    repl.inputs[index].output = Output(kind: Err, index: e.index,
-        message: e.message)
+    repl.inputs[index].output = 
+      Output(kind: Err, origin: e.origin, message: e.message)
 
 method process_key*(repl: Repl, key: Key) {.locks: "unknown", tags: [].} =
   case key.kind:
@@ -110,7 +110,7 @@ method process_key*(repl: Repl, key: Key) {.locks: "unknown", tags: [].} =
         return
     else: discard
   repl.inputs[repl.selected].entry.process_key key
-  repl.inputs[repl.selected].tokens  = ($repl.inputs[repl.selected].entry.text).scan
+  repl.inputs[repl.selected].tokens  = ($repl.inputs[repl.selected].entry.text).scan Origin(line: repl.selected, col: 0)
   repl.update_input repl.selected, repl.get_in_state repl.selected
 
 func input_number(repl: Repl, n: int): string =
@@ -141,8 +141,12 @@ method render*(repl: Repl, box: Box, ren: var TermRenderer) =
       of Ok:
         ren.put input.output.stack, (if it == repl.selected: magenta() else: bright_blue())
       of Err:
-        let text = repeat('-', input.output.index) & "^ " &
-            input.output.message
+        let origin = input.output.origin
+        let text = 
+          if origin.line == it:
+            repeat('-', origin.col) & "^ " & input.output.message
+          else:
+            "At " & $origin & ": " & input.output.message
         ren.put text, red()
 
 func make_repl*(app: App): Window =

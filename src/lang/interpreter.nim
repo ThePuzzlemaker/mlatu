@@ -14,16 +14,15 @@ import scanner, parser, checker
 
 type
   EvalError* = ref object of ValueError
-    index*: int
+    origin*: Origin
     message*: string
 
-  ValueKind = enum ValueLit, ValueQuot, ValueSym
+  ValueKind = enum ValueLit, ValueQuot
 
   Value = object
     case kind: ValueKind:
       of ValueLit: lit: Lit
       of ValueQuot: terms: seq[Term]
-      of ValueSym: word: string
 
   Stack* = seq[Value]
 
@@ -31,7 +30,6 @@ func `==`(a, b: Value): bool =
   case a.kind:
     of ValueLit: return b.kind == ValueLit and a.lit == b.lit
     of ValueQuot: return b.kind == ValueQuot and a.terms == b.terms
-    of ValueSym: return b.kind == ValueSym and a.word == b.word
 
 func new_stack*(): Stack = @[]
 
@@ -50,54 +48,48 @@ func push_bool(stack: var Stack, value: bool) {.raises: [].} =
 func push_quot(stack: var Stack, terms: seq[Term]) {.raises: [].} =
   stack.push_val Value(kind: ValueQuot, terms: terms)
 
-func push_sym(stack: var Stack, word: string) {.raises: [].} =
-  stack.push_val Value(kind: ValueSym, word: word)
-
-func pop_num(stack: var Stack, index: int): int {.raises: [EvalError].} =
+func pop_num(stack: var Stack, origin: Origin): int {.raises: [EvalError].} =
   if stack.len > 0:
     let top = stack.pop
     if top.kind == ValueLit:
       let lit = top.lit
       if top.lit.kind == LitNum: return lit.int_val
-  raise EvalError(index: index, message: "expected number on the stack")
+  raise EvalError(origin: origin, message: "expected number on the stack")
 
-func pop_quot(stack: var Stack, index: int): seq[Term] {.raises: [EvalError].} =
+func pop_quot(stack: var Stack, origin: Origin): seq[Term] {.raises: [EvalError].} =
   try:
     let top = stack.pop
     case top.kind:
       of ValueQuot: return top.terms
-      of ValueSym: return @[Term(kind: TermSym, word: top.word)]
       else: discard
   except IndexDefect: discard
-  raise EvalError(index: index, message: "expected quotation on the stack")
+  raise EvalError(origin: origin, message: "expected quotation on the stack")
 
-func pop_sym(stack: var Stack, index: int): string {.raises: [EvalError].} =
-  try:
+func pop_sym(stack: var Stack, origin: Origin): string {.raises: [EvalError].} =
+  if stack.len > 0:
     let top = stack.pop
-    case top.kind:
-      of ValueSym: return top.word
-      else: discard
-  except IndexDefect: discard
-  raise EvalError(index: index, message: "expected symbol on the stack")
+    if top.kind == ValueLit:
+      let lit = top.lit
+      if top.lit.kind == LitSym: return lit.word_val
+  raise EvalError(origin: origin, message: "expected symbol on the stack")
 
-func pop_bool(stack: var Stack, index: int): bool {.raises: [EvalError].} =
+func pop_bool(stack: var Stack, origin: Origin): bool {.raises: [EvalError].} =
   if stack.len > 0:
     let top = stack.pop
     if top.kind == ValueLit:
       let lit = top.lit
       if top.lit.kind == LitBool: return lit.bool_val
-  raise EvalError(index: index, message: "expected boolean on the stack")
+  raise EvalError(origin: origin, message: "expected boolean on the stack")
 
-func pop_val(stack: var Stack, index: int): Value {.raises: [EvalError].} =
+func pop_val(stack: var Stack, origin: Origin): Value {.raises: [EvalError].} =
   try:
     return stack.pop
   except IndexDefect: discard
-  raise EvalError(index: index, message: "expected value on the stack")
+  raise EvalError(origin: origin, message: "expected value on the stack")
 
 func uneval(value: Value): Term {.raises: [].} =
   case value.kind:
     of ValueLit: Term(kind: TermLit, lit: value.lit)
-    of ValueSym: Term(kind: TermSym, word: value.word)
     of ValueQuot: Term(kind: TermQuote, inner: value.terms)
 
 func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int, caller: string) {.raises: [EvalError], tags: [].}
@@ -112,86 +104,86 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int
     index.inc
     case term.kind:
       of TermLit: stack.push_lit term.lit
-      of TermSym: stack.push_sym term.word
       of TermQuote: stack.push_quot term.inner
       of TermWord:
         case term.word:
               of "def":
-                let body = stack.pop_quot term.start
-                let name = stack.pop_sym term.start
+                let body = stack.pop_quot term.origin
+                let name = stack.pop_sym term.origin
                 state[name] = (body, body.infer(state))
               of "and":
-                let a = stack.pop_bool term.start
-                let b = stack.pop_bool term.start
+                let a = stack.pop_bool term.origin
+                let b = stack.pop_bool term.origin
                 stack.push_bool(a and b)
               of "not":
-                let a = stack.pop_bool term.start
+                let a = stack.pop_bool term.origin
                 stack.push_bool(not a)
               of "or":
-                let a = stack.pop_bool term.start
-                let b = stack.pop_bool term.start
+                let a = stack.pop_bool term.origin
+                let b = stack.pop_bool term.origin
                 stack.push_bool(a or b)
               of "gt":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_bool(b > a)
               of "geq":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_bool(b >= a)
               of "lt":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_bool(b < a)
               of "leq":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_bool(b <= a)
               of "eq":
-                let a = stack.pop_val term.start
-                let b = stack.pop_val term.start
+                let a = stack.pop_val term.origin
+                let b = stack.pop_val term.origin
                 stack.push_bool(a == b)
               of "+":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_num(b + a)
               of "-":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_num(b - a)
               of "*":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_num(b * a)
               of "/":
-                let a = stack.pop_num term.start
-                let b = stack.pop_num term.start
+                let a = stack.pop_num term.origin
+                let b = stack.pop_num term.origin
                 stack.push_num(b /% a)
               of "if":
-                let a = stack.pop_quot term.start
-                let b = stack.pop_quot term.start
-                let c = stack.pop_bool term.start
+                let a = stack.pop_quot term.origin
+                let b = stack.pop_quot term.origin
+                let c = stack.pop_bool term.origin
 
                 if c:
                   stack.eval(state, b, 0, "")
                 else:
                   stack.eval(state, a, 0, "")
               of "k":
-                let a = stack.pop_quot term.start
-                discard stack.pop_val term.start
+                let a = stack.pop_quot term.origin
+                discard stack.pop_val term.origin
                 stack.eval state, a, 0, ""
               of "cake":
-                let a = stack.pop_quot term.start
-                let b = stack.pop_val(term.start).uneval
+                let a = stack.pop_quot term.origin
+                let b = stack.pop_val(term.origin).uneval
                 stack.push_quot(@[b] & a)
                 stack.push_quot(a & @[b])
               else:
                 try:
-                  if called > RECURSION_LIMIT: raise EvalError(index: term.start, message: "recursion limit reached")
+                  if called > RECURSION_LIMIT: 
+                    raise EvalError(origin: term.origin, message: "recursion limit reached")
                   let (body, _) = state[term.word]
                   stack.eval(state, body, if caller == term.word: called + 1 else: 0, term.word)
                 except KeyError:
-                  raise EvalError(index: term.start, message: "Unknown word `" &
+                  raise EvalError(origin: term.origin, message: "Unknown word `" &
                       term.word & "`")
 
 func display_stack*(stack: Stack): string =
@@ -204,7 +196,7 @@ proc eval_prelude(): WordTable {.raises: [], tags: [].} =
     let terms = toks.parse
     stack.eval result, terms, 0, ""
   except ParseError as e:
-    let message = "Prelude is ill-formed: parsing raised exception at " & $e.index & " (" & e.message & ")"
+    let message = "Prelude is ill-formed: parsing raised exception at " & $e.origin & " (" & e.message & ")"
     raise newException(Defect, message)
   except EvalError as e:
     let message = "Prelude is ill-formed: evaluation raised exception (" & e.message & ")"

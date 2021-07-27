@@ -8,9 +8,10 @@
 #
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
-import termdiff, window_manager, repl, std/exitprocs
+import termdiff, window_manager, repl, std/exitprocs, parseopt, options
+import lang/scanner, lang/parser, lang/checker, lang/interpreter
 
-when isMainModule:
+proc repl() =
   setup_term()
   add_exit_proc quit_app
   var cur_screen = make_term_screen()
@@ -38,3 +39,32 @@ when isMainModule:
     app.render ren
     cur_screen.apply screen
     cur_screen = screen
+
+
+when isMainModule:
+  var filename: string
+  for kind, key, val in getopt():
+    case kind:
+      of cmdArgument:
+        filename = key
+      of cmdLongOption, cmdShortOption: discard
+      of cmdEnd: false.assert
+  if filename != "":
+    let text = filename.read_file
+    let tokens = text.scan
+    try:
+      let terms = tokens.parse
+      var state = PRELUDE
+      if terms.len > 0:
+        let (f, _) = terms.infer(state)
+        some(0).unify f, terms[terms.high]
+      var stack = new_stack()
+      stack.eval(state, terms, 0, "")
+      echo stack.display_stack
+    except ParseError as e:
+      echo "At ", e.origin, ": ", e.message
+    except SpecError as e:
+      echo "At ", e.origin, ": ", e.message
+    except EvalError as e:
+      echo "At ", e.origin, ": ", e.message
+  else: repl()

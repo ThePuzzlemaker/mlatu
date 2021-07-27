@@ -12,20 +12,24 @@
 import strutils
 
 type
-  LitKind* = enum LitBool, LitNum
+  Origin* = object
+    col*: int
+    line*: int
+
+  LitKind* = enum LitBool, LitNum, LitSym
 
   Lit* = object
     case kind*: LitKind
       of LitBool: bool_val*: bool
       of LitNum: int_val*: int
+      of LitSym: word_val*: string
 
-  TokKind* = enum TokWord, TokLeftParen, TokRightParen, TokLit, TokSym
+  TokKind* = enum TokWord, TokLeftParen, TokRightParen, TokLit
 
   Tok* = object
-    start*: int
-    stop*: int
+    origin*: Origin
     case kind*: TokKind
-      of TokWord, TokSym: word*: string
+      of TokWord: word*: string
       of TokLit: lit*: Lit
       of TokLeftParen, TokRightParen:
         depth*: int
@@ -34,63 +38,69 @@ func `==`*(a, b: Lit): bool =
   case a.kind:
     of LitBool: return b.kind == LitBool and a.bool_val == b.bool_val
     of LitNum: return b.kind == LitNum and a.int_val == b.int_val
+    of LitSym: return b.kind == LitSym and a.word_val == b.word_val
 
 func `==`*(a, b: Tok): bool =
   case a.kind:
     of TokWord: return b.kind == TokWord and a.word == b.word
     of TokLit: return b.kind == TokLit and a.lit == b.lit
-    of TokSym: return b.kind == TokSym and a.word == b.word
     of TokLeftParen: return b.kind == TokLeftParen
     of TokRightParen: return b.kind == TokRightParen
 
-func parse_word(input: string, start: int, stop: int): Tok =
+func parse_word(input: string, origin: Origin): Tok =
   try: 
-    Tok(kind: TokLit, lit: Lit(kind: LitNum, int_val: input.parse_int), start: start, stop: stop)
+    Tok(kind: TokLit, lit: Lit(kind: LitNum, int_val: input.parse_int), origin: origin)
   except ValueError: 
     if input == "true": 
-      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: true), start: start, stop: stop)
+      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: true), origin: origin)
     elif input == "false":
-      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: false), start: start, stop: stop)
+      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: false), origin: origin)
     elif input[0] == ':': 
-      Tok(kind: TokSym, word: input[1..input.high], start: start, stop: stop)
+      Tok(kind: TokLit, lit: Lit(kind: LitSym, word_val: input[1..input.high]), origin: origin)
     else: 
-      Tok(kind: TokWord, word: input, start: start, stop: stop)
+      Tok(kind: TokWord, word: input, origin: origin)
 
-func scan*(input: string): seq[Tok] =
+func scan*(input: string, start: Origin = Origin(line: 0, col: 0)): seq[Tok] =
   var acc: string
-  var acc_index: int = 0
+  var acc_origin: Origin
+  var origin: Origin = start
   var depth: int = 0
   var index: int = 0
   while index < input.len:
     let c = input[index]
     if c in {' ', '\t', '\v', '\c', '\n', '\f', '(', ')'}:
       if acc.len > 0:
-        result.add acc.parse_word(acc_index, index)
+        result.add acc.parse_word(acc_origin)
         acc = ""
       if c == '(':
-        result.add Tok(kind: TokLeftParen, depth: depth, start: index, stop: index)
+        result.add Tok(kind: TokLeftParen, depth: depth, origin: origin)
         depth.inc
       elif c == ')':
         depth.dec
-        result.add Tok(kind: TokRightParen, depth: depth, start: index, stop: index)
+        result.add Tok(kind: TokRightParen, depth: depth, origin: origin)
     else:
-      if acc == "": acc_index = index
+      if acc == "": acc_origin = origin
       acc.add c
     index.inc
-  if acc.len > 0: result.add acc.parse_word(acc_index, index)
+    if c == '\n': origin.line.inc
+    else: origin.col.inc
+  if acc.len > 0: result.add acc.parse_word(acc_origin)
   while depth > 0:
     depth.dec
-    result.add Tok(kind: TokRightParen, depth: depth, start: index, stop: index)
+    result.add Tok(kind: TokRightParen, depth: depth, origin: origin)
+
+func `$`*(origin: Origin): string =
+  $origin.line & ":" & $origin.col
 
 func `$`*(lit: Lit): string =
   case lit.kind:
     of LitNum: $lit.int_val
     of LitBool: $lit.bool_val
+    of LitSym: ":" & $lit.word_val
 
 func `$`*(tok: Tok): string =
   case tok.kind:
     of TokWord: tok.word
-    of TokSym: ":" & tok.word
     of TokLit: $tok.lit
     of TokLeftParen: "("
     of TokRightParen: ")"
