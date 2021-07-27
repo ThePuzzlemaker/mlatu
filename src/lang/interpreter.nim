@@ -9,7 +9,8 @@
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
 
-import strutils, sequtils, tables, scanner, parser
+import strutils, sequtils, tables
+import scanner, parser, checker
 
 type
   EvalError* = ref object of ValueError
@@ -99,13 +100,11 @@ func uneval(value: Value): Term {.raises: [].} =
     of ValueSym: Term(kind: TermSym, word: value.word)
     of ValueQuot: Term(kind: TermQuote, inner: value.terms)
 
-type EvalState* = Table[string, seq[Term]]
-
-func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int, caller: string) {.raises: [EvalError], tags: [].}
+func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int, caller: string) {.raises: [EvalError], tags: [].}
 
 const RECURSION_LIMIT = 1000
 
-func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int, caller: string) {.raises: [
+func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int, caller: string) {.raises: [
     EvalError], tags: [].} =
   var index = 0
   while index < terms.len:
@@ -120,11 +119,7 @@ func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int
               of "def":
                 let body = stack.pop_quot term.start
                 let name = stack.pop_sym term.start
-                state[name] =  body
-              of "true":
-                stack.push_bool true
-              of "false":
-                stack.push_bool false
+                state[name] = (body, body.infer(state))
               of "and":
                 let a = stack.pop_bool term.start
                 let b = stack.pop_bool term.start
@@ -172,11 +167,6 @@ func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int
                 let a = stack.pop_num term.start
                 let b = stack.pop_num term.start
                 stack.push_num(b /% a)
-              of "swap":
-                let a = stack.pop_val term.start
-                let b = stack.pop_val term.start
-                stack.push_val a
-                stack.push_val b
               of "rollup":
                 let a = stack.pop_val term.start
                 let b = stack.pop_val term.start
@@ -219,7 +209,8 @@ func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int
               else:
                 try:
                   if called > RECURSION_LIMIT: raise EvalError(index: term.start, message: "recursion limit reached")
-                  stack.eval(state, state[term.word], if caller == term.word: called + 1 else: 0, term.word)
+                  let (body, _) = state[term.word]
+                  stack.eval(state, body, if caller == term.word: called + 1 else: 0, term.word)
                 except KeyError:
                   raise EvalError(index: term.start, message: "Unknown word `" &
                       term.word & "`")
@@ -227,20 +218,18 @@ func eval*(stack: var Stack, state: var EvalState, terms: seq[Term], called: int
 func display_stack*(stack: Stack): string =
   stack.map_it($it.uneval).join(" ")
 
-proc eval_prelude(): EvalState {.raises: [], tags: [].} =
+proc eval_prelude(): WordTable {.raises: [], tags: [].} =
   var stack: Stack = @[]
   let toks = "prelude.mlt".static_read.scan
   try:
     let terms = toks.parse
     stack.eval result, terms, 0, ""
-    if stack.len > 0:
-      raise newException(Defect, ("Prelude is ill-formed: stack contained items after evaluation (" &
-          stack.display_stack & ")"))
-  except EvalError as e:
-    let message = "Prelude is ill-formed: evaluation raised exception (" & e.message & ")"
-    raise newException(Defect, message)
   except ParseError as e:
     let message = "Prelude is ill-formed: parsing raised exception at " & $e.index & " (" & e.message & ")"
     raise newException(Defect, message)
+  except EvalError as e:
+    let message = "Prelude is ill-formed: evaluation raised exception (" & e.message & ")"
+    raise newException(Defect, message)
+
 
 const PRELUDE* = eval_prelude()

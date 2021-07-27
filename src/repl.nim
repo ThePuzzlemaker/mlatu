@@ -8,8 +8,8 @@
 #
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
-import strutils, sequtils, unicode
-import window_manager, termdiff, utils, ui_utils, lang/interpreter, lang/scanner, lang/parser
+import strutils, sequtils, unicode, options
+import window_manager, termdiff, utils, ui_utils, lang/interpreter, lang/scanner, lang/parser, lang/checker
 
 type
   OutputKind = enum Ok, Err
@@ -24,14 +24,14 @@ type
     entry: Entry
     tokens: seq[Tok]
     output: Output
-    out_state: EvalState
+    out_state: WordTable
 
   Repl* = ref object of Window
     app: App
     inputs: seq[Input]
     selected: int
     scroll: Index2d
-    in_state: EvalState
+    in_state: WordTable
 
 func make_input(app: App): Input =
   return Input(entry: make_entry(app.copy_buffer))
@@ -54,26 +54,32 @@ method process_mouse*(repl: Repl, mouse: Mouse): bool {.locks: "unknown".} =
     mouse_rel.y = 0
     repl.inputs[repl.selected].entry.process_mouse(mouse_rel)
 
-func get_in_state(repl: Repl, index: int): EvalState {.raises: [], tags: [].} =
+func get_in_state(repl: Repl, index: int): WordTable {.raises: [], tags: [].} =
   if index > 0:
     repl.inputs[index - 1].out_state
   else:
     repl.in_state
 
-func update_input(repl: Repl, index: int, in_state: EvalState) {.raises: [],
+func update_input(repl: Repl, index: int, in_state: WordTable) {.raises: [],
     tags: [].} =
   try:
-    repl.inputs[index].out_state = in_state
     var stack: Stack = new_stack()
     let terms = repl.inputs[index].tokens.parse
+    if terms.len > 0:
+      let (f, _) = terms.infer(in_state)
+      some(0).unify f, terms[terms.high]
+    repl.inputs[index].out_state = in_state
     stack.eval(repl.inputs[index].out_state, terms, 0, "")
     repl.inputs[index].output = Output(kind: Ok, stack: stack.display_stack)
     if (index + 1) < repl.inputs.len:
       repl.update_input(index + 1, repl.inputs[index].out_state)
-  except EvalError as e:
+  except ParseError as e:
     repl.inputs[index].output = Output(kind: Err, index: e.index,
         message: e.message)
-  except ParseError as e:
+  except SpecError as e:
+    repl.inputs[index].output = Output(kind: Err, index: e.index,
+        message: e.message)
+  except EvalError as e:
     repl.inputs[index].output = Output(kind: Err, index: e.index,
         message: e.message)
 

@@ -1,10 +1,11 @@
 :pop        ( () k ) def
 :dip        ( cake k ) def
-:cons       ( cake () k ) def
+:cons       ( cake pop ) def
 :i          ( (()) dip k ) def
 :dup        ( () cake dip dip ) def
 :cat        ( ( :i dip i ) cons cons) def
 :unit       ( () cons ) def
+:swap       ( unit dip ) def
 :popd       ( :pop dip ) def
 :dupd       ( :dup dip ) def
 :rollupd    ( :rollup dip ) def
@@ -15,4 +16,5 @@
 :neq        ( eq not ) def
 :itob       ( 0 neq ) def
 :btoi       ( ( 1 ) ( 0 ) if) def
-:repeat     ( dupd pred dup itob rollup ( repeat cat ) cons cons () if ) def
+:repeat     ( dupd pred dup (0 gt) rollup ( repeat cat ) cons cons () if ) def
+:fact       ( dup ( 0 gt ) dip dup pred ( fact * ) cons cons ( 1 ) if ) def

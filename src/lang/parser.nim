@@ -74,7 +74,7 @@ func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
 func `$`*(term: Term): string =
   case term.kind:
     of TermWord: return term.word
-    of TermSym: return "( " & term.word & " )"
+    of TermSym: return ":" & term.word
     of TermLit: return $term.lit
     of TermQuote:
       result &= "( "
