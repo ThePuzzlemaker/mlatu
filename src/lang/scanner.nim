@@ -48,16 +48,19 @@ func `==`*(a, b: Tok): bool =
     of TokRightParen: return b.kind == TokRightParen
 
 func parse_word(input: string, origin: Origin): Tok =
-  try: 
-    Tok(kind: TokLit, lit: Lit(kind: LitNum, int_val: input.parse_int), origin: origin)
-  except ValueError: 
-    if input == "true": 
+  try:
+    Tok(kind: TokLit, lit: Lit(kind: LitNum, int_val: input.parse_int),
+        origin: origin)
+  except ValueError:
+    if input == "true":
       Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: true), origin: origin)
     elif input == "false":
-      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: false), origin: origin)
-    elif input[0] == ':': 
-      Tok(kind: TokLit, lit: Lit(kind: LitSym, word_val: input[1..input.high]), origin: origin)
-    else: 
+      Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: false),
+          origin: origin)
+    elif input[0] == ':':
+      Tok(kind: TokLit, lit: Lit(kind: LitSym, word_val: input[1..input.high]),
+          origin: origin)
+    else:
       Tok(kind: TokWord, word: input, origin: origin)
 
 func scan*(input: string, start: Origin = Origin(line: 0, col: 0)): seq[Tok] =

@@ -9,7 +9,7 @@
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
 
-import scanner, strutils, sequtils 
+import scanner, strutils, sequtils
 
 type
   ParseError* = ref object of ValueError
@@ -47,7 +47,8 @@ func parse_quot(toks: seq[Tok]): (seq[Term], seq[Tok]) =
       of TokRightParen:
         return (acc, toks[index..toks.high])
       of TokLit: acc.add Term(kind: TermLit, lit: tok.lit, origin: tok.origin)
-      of TokWord: acc.add Term(kind: TermWord, word: tok.word, origin: tok.origin)
+      of TokWord: acc.add Term(kind: TermWord, word: tok.word,
+          origin: tok.origin)
   return (acc, @[])
 
 func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
@@ -64,8 +65,10 @@ func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
         result.add Term(kind: TermQuote, inner: inner)
       of TokRightParen:
         raise ParseError(origin: tok.origin, message: "Expected `(` before `)`")
-      of TokLit: result.add Term(kind: TermLit, lit: tok.lit, origin: tok.origin)
-      of TokWord: result.add Term(kind: TermWord, word: tok.word, origin: tok.origin)
+      of TokLit: result.add Term(kind: TermLit, lit: tok.lit,
+          origin: tok.origin)
+      of TokWord: result.add Term(kind: TermWord, word: tok.word,
+          origin: tok.origin)
 
 func `$`*(term: Term): string =
   case term.kind:

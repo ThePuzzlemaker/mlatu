@@ -9,7 +9,8 @@
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
 import strutils, sequtils, unicode, options
-import window_manager, termdiff, utils, ui_utils, lang/interpreter, lang/scanner, lang/parser, lang/checker
+import window_manager, termdiff, utils, ui_utils, lang/interpreter,
+    lang/scanner, lang/parser, lang/checker
 
 type
   OutputKind = enum Ok, Err
@@ -74,30 +75,33 @@ func update_input(repl: Repl, index: int, in_state: WordTable) {.raises: [],
     if (index + 1) < repl.inputs.len:
       repl.update_input(index + 1, repl.inputs[index].out_state)
   except ParseError as e:
-    repl.inputs[index].output = 
+    repl.inputs[index].output =
       Output(kind: Err, origin: e.origin, message: e.message)
   except SpecError as e:
-    repl.inputs[index].output = 
+    repl.inputs[index].output =
       Output(kind: Err, origin: e.origin, message: e.message)
   except EvalError as e:
-    repl.inputs[index].output = 
+    repl.inputs[index].output =
       Output(kind: Err, origin: e.origin, message: e.message)
 
 method process_key*(repl: Repl, key: Key) {.locks: "unknown", tags: [].} =
   case key.kind:
     of KeyReturn:
-      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
+      repl.inputs[repl.selected].entry.text = repl.inputs[
+          repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.inputs.insert(repl.make_input, repl.selected + 1)
       repl.selected += 1
       return
     of KeyArrowDown:
-      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
+      repl.inputs[repl.selected].entry.text = repl.inputs[
+          repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.selected += 1
       if repl.selected >= repl.inputs.len:
         repl.selected = repl.inputs.len - 1
       return
     of KeyArrowUp:
-      repl.inputs[repl.selected].entry.text = repl.inputs[repl.selected].tokens.map(`$`).join(" ").to_runes
+      repl.inputs[repl.selected].entry.text = repl.inputs[
+          repl.selected].tokens.map(`$`).join(" ").to_runes
       repl.selected -= 1
       if repl.selected < 0:
         repl.selected = 0
@@ -110,7 +114,8 @@ method process_key*(repl: Repl, key: Key) {.locks: "unknown", tags: [].} =
         return
     else: discard
   repl.inputs[repl.selected].entry.process_key key
-  repl.inputs[repl.selected].tokens  = ($repl.inputs[repl.selected].entry.text).scan Origin(line: repl.selected, col: 0)
+  repl.inputs[repl.selected].tokens = ($repl.inputs[
+      repl.selected].entry.text).scan Origin(line: repl.selected, col: 0)
   repl.update_input repl.selected, repl.get_in_state repl.selected
 
 func input_number(repl: Repl, n: int): string =
@@ -142,7 +147,7 @@ method render*(repl: Repl, box: Box, ren: var TermRenderer) =
         ren.put input.output.stack, (if it == repl.selected: magenta() else: bright_blue())
       of Err:
         let origin = input.output.origin
-        let text = 
+        let text =
           if origin.line == it:
             repeat('-', origin.col) & "^ " & input.output.message
           else:

@@ -8,7 +8,7 @@
 #
 # The Mlatu programming language comes with ABSOLUTELY NO WARRANTY, to the 
 # extent permitted by applicable law.  See the CNPL for details.
-import termdiff, window_manager, repl, std/exitprocs, parseopt, options
+import termdiff, window_manager, editor, repl, std/exitprocs, parseopt, options
 import lang/scanner, lang/parser, lang/checker, lang/interpreter
 
 proc repl() =
@@ -16,6 +16,7 @@ proc repl() =
   add_exit_proc quit_app
   var cur_screen = make_term_screen()
   var window_constructors = @[
+    make_window_constructor("Editor", make_editor),
     make_window_constructor("REPL", make_repl)
   ]
   var app = window_constructors.make_app

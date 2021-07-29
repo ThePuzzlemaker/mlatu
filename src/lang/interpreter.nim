@@ -92,12 +92,13 @@ func uneval(value: Value): Term {.raises: [].} =
     of ValueLit: Term(kind: TermLit, lit: value.lit)
     of ValueQuot: Term(kind: TermQuote, inner: value.terms)
 
-func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int, caller: string) {.raises: [EvalError], tags: [].}
+func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
+    called: int, caller: string) {.raises: [EvalError], tags: [].}
 
 const RECURSION_LIMIT = 1000
 
-func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int, caller: string) {.raises: [
-    EvalError], tags: [].} =
+func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
+    called: int, caller: string) {.raises: [EvalError], tags: [].} =
   var index = 0
   while index < terms.len:
     let term = terms[index]
@@ -107,84 +108,86 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term], called: int
       of TermQuote: stack.push_quot term.inner
       of TermWord:
         case term.word:
-              of "def":
-                let body = stack.pop_quot term.origin
-                let name = stack.pop_sym term.origin
-                state[name] = (body, body.infer(state))
-              of "and":
-                let a = stack.pop_bool term.origin
-                let b = stack.pop_bool term.origin
-                stack.push_bool(a and b)
-              of "not":
-                let a = stack.pop_bool term.origin
-                stack.push_bool(not a)
-              of "or":
-                let a = stack.pop_bool term.origin
-                let b = stack.pop_bool term.origin
-                stack.push_bool(a or b)
-              of "gt":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_bool(b > a)
-              of "geq":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_bool(b >= a)
-              of "lt":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_bool(b < a)
-              of "leq":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_bool(b <= a)
-              of "eq":
-                let a = stack.pop_val term.origin
-                let b = stack.pop_val term.origin
-                stack.push_bool(a == b)
-              of "+":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_num(b + a)
-              of "-":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_num(b - a)
-              of "*":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_num(b * a)
-              of "/":
-                let a = stack.pop_num term.origin
-                let b = stack.pop_num term.origin
-                stack.push_num(b /% a)
-              of "if":
-                let a = stack.pop_quot term.origin
-                let b = stack.pop_quot term.origin
-                let c = stack.pop_bool term.origin
+          of "def":
+            let body = stack.pop_quot term.origin
+            let name = stack.pop_sym term.origin
+            state[name] = (body, body.infer(state))
+          of "and":
+            let a = stack.pop_bool term.origin
+            let b = stack.pop_bool term.origin
+            stack.push_bool(a and b)
+          of "not":
+            let a = stack.pop_bool term.origin
+            stack.push_bool(not a)
+          of "or":
+            let a = stack.pop_bool term.origin
+            let b = stack.pop_bool term.origin
+            stack.push_bool(a or b)
+          of "gt":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_bool(b > a)
+          of "geq":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_bool(b >= a)
+          of "lt":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_bool(b < a)
+          of "leq":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_bool(b <= a)
+          of "eq":
+            let a = stack.pop_val term.origin
+            let b = stack.pop_val term.origin
+            stack.push_bool(a == b)
+          of "+":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_num(b + a)
+          of "-":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_num(b - a)
+          of "*":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_num(b * a)
+          of "/":
+            let a = stack.pop_num term.origin
+            let b = stack.pop_num term.origin
+            stack.push_num(b /% a)
+          of "if":
+            let a = stack.pop_quot term.origin
+            let b = stack.pop_quot term.origin
+            let c = stack.pop_bool term.origin
 
-                if c:
-                  stack.eval(state, b, 0, "")
-                else:
-                  stack.eval(state, a, 0, "")
-              of "k":
-                let a = stack.pop_quot term.origin
-                discard stack.pop_val term.origin
-                stack.eval state, a, 0, ""
-              of "cake":
-                let a = stack.pop_quot term.origin
-                let b = stack.pop_val(term.origin).uneval
-                stack.push_quot(@[b] & a)
-                stack.push_quot(a & @[b])
-              else:
-                try:
-                  if called > RECURSION_LIMIT: 
-                    raise EvalError(origin: term.origin, message: "recursion limit reached")
-                  let (body, _) = state[term.word]
-                  stack.eval(state, body, if caller == term.word: called + 1 else: 0, term.word)
-                except KeyError:
-                  raise EvalError(origin: term.origin, message: "Unknown word `" &
-                      term.word & "`")
+            if c:
+              stack.eval(state, b, 0, "")
+            else:
+              stack.eval(state, a, 0, "")
+          of "k":
+            let a = stack.pop_quot term.origin
+            discard stack.pop_val term.origin
+            stack.eval state, a, 0, ""
+          of "cake":
+            let a = stack.pop_quot term.origin
+            let b = stack.pop_val(term.origin).uneval
+            stack.push_quot(@[b] & a)
+            stack.push_quot(a & @[b])
+          else:
+            try:
+              if called > RECURSION_LIMIT:
+                raise EvalError(origin: term.origin,
+                    message: "recursion limit reached")
+              let (body, _) = state[term.word]
+              stack.eval(state, body, if caller == term.word: called +
+                  1 else: 0, term.word)
+            except KeyError:
+              raise EvalError(origin: term.origin, message: "Unknown word `" &
+                  term.word & "`")
 
 func display_stack*(stack: Stack): string =
   stack.map_it($it.uneval).join(" ")
@@ -196,10 +199,12 @@ proc eval_prelude(): WordTable {.raises: [], tags: [].} =
     let terms = toks.parse
     stack.eval result, terms, 0, ""
   except ParseError as e:
-    let message = "Prelude is ill-formed: parsing raised exception at " & $e.origin & " (" & e.message & ")"
+    let message = "Prelude is ill-formed: parsing raised exception at " &
+        $e.origin & " (" & e.message & ")"
     raise newException(Defect, message)
   except EvalError as e:
-    let message = "Prelude is ill-formed: evaluation raised exception (" & e.message & ")"
+    let message = "Prelude is ill-formed: evaluation raised exception (" &
+        e.message & ")"
     raise newException(Defect, message)
 
 

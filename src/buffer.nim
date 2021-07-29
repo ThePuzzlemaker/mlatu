@@ -22,11 +22,7 @@ type
         insert_pos*: int
         insert_text*: seq[Rune]
 
-  IndentStyle* = enum IndentSpaces, IndentTab
-
   NewlineStyle* = enum NewlineLf, NewlineCrLf
-
-  CursorHook* = proc(start: int, delta: int) {.closure.}
 
   Buffer* = ref object
     file_path*: string
@@ -45,7 +41,7 @@ func index_lines*(text: seq[Rune]): seq[int] =
   result.add 0
   for it, chr in text.pairs:
     if chr == '\n':
-      result.add it + 1
+      result.add(it + 1)
 
 func reindex_lines*(buffer: Buffer) =
   buffer.lines = buffer.text.index_lines
@@ -205,6 +201,30 @@ func line_range*(buffer: Buffer, line: int): (int, int) =
       break
     it += 1
   result = (buffer.lines[line], it)
+
+func match_bracket(buffer: Buffer, pos, delta: int, open_chr,
+    close_chr: Rune): int =
+  result = -1
+  if pos < buffer.len:
+    var it = pos
+    var depth = 0
+    while it >= 0 and it < buffer.len:
+      if buffer.text[it] == open_chr:
+        depth += 1
+      elif buffer.text[it] == close_chr:
+        depth -= 1
+        if depth == 0:
+          return it
+      it += 1
+
+func match_bracket*(buffer: Buffer, pos: int): int =
+  result = -1
+  if pos < buffer.len:
+    let chr = buffer.text[pos]
+    case chr:
+      of '(': return buffer.match_bracket(pos, 1, '(', ')')
+      of ')': return buffer.match_bracket(pos, -1, ')', '(')
+      else: discard
 
 func skip*(buffer: Buffer, pos: int, dir: int): int =
   if buffer.text.len > 0:

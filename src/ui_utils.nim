@@ -259,11 +259,11 @@ func render_border*(title: string, sidebar_width: int, box: Box,
   let titlebar = strutils.repeat(' ', sidebar_width + 1) & shown_title &
       strutils.repeat(' ', padding_len.max(0))
   ren.move_to box.min
-  ren.put titlebar
+  ren.put titlebar, reverse=true
 
   for y in 1..<box.size.y:
     ren.move_to box.min.x, (box.min.y + y)
-    ren.put repeat(' ', sidebar_width)
+    ren.put repeat(' ', sidebar_width), reverse=true
 
 type List* = object
   items*: seq[seq[Rune]]
