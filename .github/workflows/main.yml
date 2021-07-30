@@ -4,21 +4,13 @@ on: push
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    needs: before
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macOS-latest
-        version:
-          - stable
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - uses: ./
         with:
-          nim-version: ${{ matrix.version }}
+          nim-version: stable
       - name: Build
         run: nimble build -d:Release
       - name: Release
