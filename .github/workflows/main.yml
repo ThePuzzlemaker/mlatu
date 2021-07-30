@@ -1,0 +1,28 @@
+name: Main
+
+on: push
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: before
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macOS-latest
+        version:
+          - stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: ./
+        with:
+          nim-version: ${{ matrix.version }}
+      - name: Build
+        run: nimble build -d:Release
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ./mlatu
