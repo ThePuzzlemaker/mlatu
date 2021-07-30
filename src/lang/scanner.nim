@@ -16,21 +16,21 @@ type
     col*: int
     line*: int
 
-  LitKind* = enum LitBool, LitNum, LitSym
+  LitKind* = enum LitBool, LitNum
 
   Lit* = object
     case kind*: LitKind
       of LitBool: bool_val*: bool
       of LitNum: int_val*: int
-      of LitSym: word_val*: string
 
-  TokKind* = enum TokWord, TokLeftParen, TokRightParen, TokLit
+  TokKind* = enum TokWord, TokLeftParen, TokRightParen, TokLit, TokBang
 
   Tok* = object
     origin*: Origin
     case kind*: TokKind
       of TokWord: word*: string
       of TokLit: lit*: Lit
+      of TokBang: name*: string
       of TokLeftParen, TokRightParen:
         depth*: int
 
@@ -38,7 +38,6 @@ func `==`*(a, b: Lit): bool =
   case a.kind:
     of LitBool: return b.kind == LitBool and a.bool_val == b.bool_val
     of LitNum: return b.kind == LitNum and a.int_val == b.int_val
-    of LitSym: return b.kind == LitSym and a.word_val == b.word_val
 
 func `==`*(a, b: Tok): bool =
   case a.kind:
@@ -46,6 +45,7 @@ func `==`*(a, b: Tok): bool =
     of TokLit: return b.kind == TokLit and a.lit == b.lit
     of TokLeftParen: return b.kind == TokLeftParen
     of TokRightParen: return b.kind == TokRightParen
+    of TokBang: return b.kind == TokBang and a.name == b.name
 
 func parse_word(input: string, origin: Origin): Tok =
   try:
@@ -57,9 +57,8 @@ func parse_word(input: string, origin: Origin): Tok =
     elif input == "false":
       Tok(kind: TokLit, lit: Lit(kind: LitBool, bool_val: false),
           origin: origin)
-    elif input[0] == ':':
-      Tok(kind: TokLit, lit: Lit(kind: LitSym, word_val: input[1..input.high]),
-          origin: origin)
+    elif input.starts_with "!":
+      Tok(kind: TokBang, name: input[1..input.high], origin: origin)
     else:
       Tok(kind: TokWord, word: input, origin: origin)
 
@@ -99,7 +98,6 @@ func `$`*(lit: Lit): string =
   case lit.kind:
     of LitNum: $lit.int_val
     of LitBool: $lit.bool_val
-    of LitSym: ":" & $lit.word_val
 
 func `$`*(tok: Tok): string =
   case tok.kind:
@@ -107,3 +105,4 @@ func `$`*(tok: Tok): string =
     of TokLit: $tok.lit
     of TokLeftParen: "("
     of TokRightParen: ")"
+    of TokBang: "!" & tok.name

@@ -30,10 +30,9 @@ func infer(term: Term, state: WordTable): (Spec, Spec) =
   case term.kind:
     of TermLit, TermQuote:
       return (some(0), some(1))
+    of TermDef: return (some(0), some(0))
     of TermWord:
       case term.word:
-        of "def":
-          return (some(2), some(0))
         of "and", "or", "gt", "geq", "lt", "leq", "eq", "+", "-", "*", "/":
           return (some(2), some(1))
         of "k":

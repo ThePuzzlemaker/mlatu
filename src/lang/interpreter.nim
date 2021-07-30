@@ -26,10 +26,12 @@ type
 
   Stack* = seq[Value]
 
-func `==`(a, b: Value): bool =
+func normalize(terms: seq[Term], state: WordTable): seq[Term] {.raises: [], tags: [].}
+
+func is_equal(a, b: Value, state: WordTable): bool =
   case a.kind:
     of ValueLit: return b.kind == ValueLit and a.lit == b.lit
-    of ValueQuot: return b.kind == ValueQuot and a.terms == b.terms
+    of ValueQuot: return b.kind == ValueQuot and normalize(a.terms, state) == normalize(b.terms, state)
 
 func new_stack*(): Stack = @[]
 
@@ -65,14 +67,6 @@ func pop_quot(stack: var Stack, origin: Origin): seq[Term] {.raises: [EvalError]
   except IndexDefect: discard
   raise EvalError(origin: origin, message: "expected quotation on the stack")
 
-func pop_sym(stack: var Stack, origin: Origin): string {.raises: [EvalError].} =
-  if stack.len > 0:
-    let top = stack.pop
-    if top.kind == ValueLit:
-      let lit = top.lit
-      if top.lit.kind == LitSym: return lit.word_val
-  raise EvalError(origin: origin, message: "expected symbol on the stack")
-
 func pop_bool(stack: var Stack, origin: Origin): bool {.raises: [EvalError].} =
   if stack.len > 0:
     let top = stack.pop
@@ -92,13 +86,10 @@ func uneval(value: Value): Term {.raises: [].} =
     of ValueLit: Term(kind: TermLit, lit: value.lit)
     of ValueQuot: Term(kind: TermQuote, inner: value.terms)
 
-func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
-    called: int, caller: string) {.raises: [EvalError], tags: [].}
-
 const RECURSION_LIMIT = 1000
 
 func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
-    called: int, caller: string) {.raises: [EvalError], tags: [].} =
+    called: int, caller: string, should_normalize = true) {.raises: [EvalError], tags: [].} =
   var index = 0
   while index < terms.len:
     let term = terms[index]
@@ -106,12 +97,13 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
     case term.kind:
       of TermLit: stack.push_lit term.lit
       of TermQuote: stack.push_quot term.inner
+      of TermDef: 
+        if should_normalize:
+          state[term.name] = (normalize(term.body, state), term.body.infer(state))
+        else:
+          state[term.name] = (term.body, term.body.infer(state))
       of TermWord:
         case term.word:
-          of "def":
-            let body = stack.pop_quot term.origin
-            let name = stack.pop_sym term.origin
-            state[name] = (body, body.infer(state))
           of "and":
             let a = stack.pop_bool term.origin
             let b = stack.pop_bool term.origin
@@ -142,7 +134,7 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
           of "eq":
             let a = stack.pop_val term.origin
             let b = stack.pop_val term.origin
-            stack.push_bool(a == b)
+            stack.push_bool(is_equal(a, b, state))
           of "+":
             let a = stack.pop_num term.origin
             let b = stack.pop_num term.origin
@@ -175,8 +167,8 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
           of "cake":
             let a = stack.pop_quot term.origin
             let b = stack.pop_val(term.origin).uneval
-            stack.push_quot(@[b] & a)
-            stack.push_quot(a & @[b])
+            stack.push_quot(normalize(@[b] & a, state))
+            stack.push_quot(normalize(a & @[b], state))
           else:
             try:
               if called > RECURSION_LIMIT:
@@ -189,6 +181,16 @@ func eval*(stack: var Stack, state: var WordTable, terms: seq[Term],
               raise EvalError(origin: term.origin, message: "Unknown word `" &
                   term.word & "`")
 
+func normalize(terms: seq[Term], state: WordTable): seq[Term] {.raises: [], tags: [].} =
+  result = terms
+  var stack: Stack = @[]
+  var state = state
+  try:
+    stack.eval state, terms, 0, ""
+    result = stack.map(uneval)
+  except EvalError: discard
+  return
+
 func display_stack*(stack: Stack): string =
   stack.map_it($it.uneval).join(" ")
 
@@ -197,7 +199,7 @@ proc eval_prelude(): WordTable {.raises: [], tags: [].} =
   let toks = "prelude.mlt".static_read.scan
   try:
     let terms = toks.parse
-    stack.eval result, terms, 0, ""
+    stack.eval result, terms, 0, "", should_normalize = false
   except ParseError as e:
     let message = "Prelude is ill-formed: parsing raised exception at " &
         $e.origin & " (" & e.message & ")"

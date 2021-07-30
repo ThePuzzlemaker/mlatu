@@ -16,7 +16,7 @@ type
     origin*: Origin
     message*: string
 
-  TermKind* = enum TermLit, TermQuote, TermWord
+  TermKind* = enum TermLit, TermQuote, TermWord, TermDef
 
   Term* = object
     origin*: Origin
@@ -24,12 +24,16 @@ type
       of TermLit: lit*: Lit
       of TermQuote: inner*: seq[Term]
       of TermWord: word*: string
+      of TermDef:
+        name*: string
+        body*: seq[Term]
 
 func `==`*(a, b: Term): bool =
   case a.kind:
     of TermWord: return b.kind == TermWord and a.word == b.word
     of TermLit: return b.kind == TermLit and a.lit == b.lit
     of TermQuote: return b.kind == TermQuote and a.inner == b.inner
+    of TermDef: return b.kind == TermDef and a.name == b.name and a.body == b.body
 
 func parse_quot(toks: seq[Tok]): (seq[Term], seq[Tok]) =
   var index = 0
@@ -49,6 +53,7 @@ func parse_quot(toks: seq[Tok]): (seq[Term], seq[Tok]) =
       of TokLit: acc.add Term(kind: TermLit, lit: tok.lit, origin: tok.origin)
       of TokWord: acc.add Term(kind: TermWord, word: tok.word,
           origin: tok.origin)
+      of TokBang: raise ParseError(origin: tok.origin, message: "Did not expect word definition in quotation")
   return (acc, @[])
 
 func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
@@ -62,19 +67,36 @@ func parse*(toks: seq[Tok]): seq[Term] {.raises: [ParseError].} =
         let (inner, new_toks) = parse_quot(toks[index..toks.high])
         index = 0
         toks = new_toks
-        result.add Term(kind: TermQuote, inner: inner)
+        result.add Term(kind: TermQuote, inner: inner, origin: tok.origin)
       of TokRightParen:
         raise ParseError(origin: tok.origin, message: "Expected `(` before `)`")
       of TokLit: result.add Term(kind: TermLit, lit: tok.lit,
           origin: tok.origin)
-      of TokWord: result.add Term(kind: TermWord, word: tok.word,
-          origin: tok.origin)
+      of TokWord: result.add Term(kind: TermWord, word: tok.word, origin: tok.origin)
+      of TokBang: 
+        if toks[index].kind == TokLeftParen:
+          let (inner, new_toks) = parse_quot(toks[(index + 1)..toks.high])
+          index = 0
+          toks = new_toks
+          result.add Term(kind: TermDef, name: tok.name, body: inner, origin: tok.origin)
+        else:
+          raise ParseError(origin: tok.origin, message: "Expected `(` after `!<word>`")
 
 func `$`*(term: Term): string =
   case term.kind:
     of TermWord: return term.word
     of TermLit: return $term.lit
+    of TermDef: 
+      result &= "!"
+      result &= term.name
+      result &= " ("
+      if term.body.len > 0:
+        result &= " "
+        result &= term.body.map(`$`).join(" ")
+      result &= " )"
     of TermQuote:
-      result &= "( "
-      result &= term.inner.map(`$`).join(" ")
+      result &= "("
+      if term.inner.len > 0: 
+        result &= " "
+        result &= term.inner.map(`$`).join(" ")
       result &= " )"

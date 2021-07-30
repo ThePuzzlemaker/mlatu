@@ -1,36 +1,36 @@
-:pop        ( () k ) def
-:dip        ( cake k ) def
-:cons       ( cake pop ) def
-:i          ( (()) dip k ) def
-:dup        ( () cake dip dip ) def
-:rep        ( dup ( i ) dip i ) def
-:run        ( dup ( i ) dip ) def
-:m          ( dup i ) def
-:cat        ( ( ( i ) dip i ) cons cons ) def
-:unit       ( () cons ) def
-:swap       ( unit dip ) def
-:z          ( swap k ) def
-:popd       ( ( pop ) dip ) def
-:dupd       ( ( dup ) dip ) def
-:swapd      ( ( swap ) dip ) def
-:dup2       ( dupd dup swapd ) def
-:pop2       ( pop pop ) def
-:swat       ( swap cat ) def
-:i2         ( ( dip ) dip i ) def
-:dipd       ( ( dip ) cons dip ) def
-:dip2       ( ( dip ) cons dip ) def
-:dip3       ( ( dip2 ) cons dip ) def
-:rollup     ( swap swapd ) def
-:rolldown   ( swapd swap ) def
-:rotate     ( swapd swap swapd ) def
-:rollupd    ( ( rollup ) dip ) def
-:rolldownd  ( ( rolldown ) dip ) def
-:rotated    ( ( rotate ) dip ) def
+!pop ( () k )
+!dip ( cake k )
+!cons ( cake pop )
+!i ( (()) dip k )
+!dup ( () cake dip dip )
+!rep ( dup ( i ) dip i )
+!run ( dup ( i ) dip )
+!m ( dup i )
+!cat ( ( ( i ) dip i ) cons cons )
+!unit ( () cons )
+!swap ( unit dip )
+!z ( swap k )
+!popd ( ( pop ) dip )
+!dupd ( ( dup ) dip )
+!swapd ( ( swap ) dip )
+!dup2 ( dupd dup swapd )
+!pop2 ( pop pop )
+!swat ( swap cat )
+!i2 ( ( dip ) dip i )
+!dipd ( ( dip ) cons dip )
+!dip2 ( ( dip ) cons dip )
+!dip3 ( ( dip2 ) cons dip )
+!rollup ( swap swapd )
+!rolldown ( swapd swap )
+!rotate ( swapd swap swapd )
+!rollupd ( ( rollup ) dip )
+!rolldownd ( ( rolldown ) dip )
+!rotated ( ( rotate ) dip )
 
-:pred       ( 1 - ) def
-:succ       ( 1 + ) def
-:neq        ( eq not ) def
-:itob       ( 0 neq ) def
-:btoi       ( ( 1 ) ( 0 ) if) def
-:repeat     ( dupd pred dup (0 gt) rollup ( repeat cat ) cons cons () if ) def
-:fact       ( dup ( 0 gt ) dip dup pred ( fact * ) cons cons ( 1 ) if ) def
+!pred ( 1 - )
+!succ ( 1 + )
+!neq ( eq not )
+!itob ( 0 neq )
+!btoi ( ( 1 ) ( 0 ) if)
+!repeat ( dupd pred dup (0 gt) rollup ( repeat cat ) cons cons () if )
+!fact ( dup ( 0 gt ) dip dup pred ( fact * ) cons cons ( 1 ) if )
