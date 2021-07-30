@@ -20,6 +20,6 @@ jobs:
         run: nimble build -Y
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: "contains(github.event.head_commit.message, '[release]')"
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: ./mlatu
