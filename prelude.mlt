@@ -1,2 +1,2 @@
-q = ( ) const;
+q = ( ) cons;
 swap = q dip;
