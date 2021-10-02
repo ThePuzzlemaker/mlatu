@@ -1,2 +1,10 @@
-q = ( ) cons;
-swap = q dip;
+prepend = p;
+concat = c;
+unquote = u;
+quote = q;
+swap = s;
+remove = r;
+dup = d;
+
+unquote-before = swap quote cat unquote;
+uqb = unquote-before;

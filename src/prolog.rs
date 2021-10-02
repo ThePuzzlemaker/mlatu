@@ -5,7 +5,7 @@ pub mod codegen;
 pub mod util;
 pub use util::ContextExt;
 
-static SAVED_STATE:&[u8] = include_bytes!("../mlatu.pl.save");
+static SAVED_STATE:&[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/mlatu.pl.save"));
 
 #[must_use]
 pub fn init_engine() -> Engine {

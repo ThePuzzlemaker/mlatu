@@ -5,28 +5,28 @@ equiv(Xs, Other) :-
     user_equiv(Xs, Other) ;
     builtin_equiv(Xs, Other).
 
-builtin_equiv(['dup',X|Xs], Other) :-
+builtin_equiv(['d',X|Xs], Other) :-
     equiv([X,X|Xs], Other).
 
-builtin_equiv(['pop',_|Xs], Other) :-
+builtin_equiv(['r',_|Xs], Other) :-
     equiv(Xs, Other).
 
-builtin_equiv(['i',[]|Xs], Other) :-
-    equiv(Xs, Other).
-builtin_equiv(['i',[H|T]|Xs], Other) :-
-    append([H|T], Xs, NewXs),
+builtin_equiv(['u',Quote|Xs], Other) :-
+    append(Quote, Xs, NewXs),
     equiv(NewXs, Other).
 
-builtin_equiv(['cons',[],X|Xs], Other) :-
+builtin_equiv(['q',X|Xs], Other) :-
     equiv([[X]|Xs], Other).
-builtin_equiv(['cons',[H|T],X|Xs], Other) :-
-    equiv([[X,H|T]|Xs], Other).
 
-builtin_equiv(['dip',[],X|Xs], Other) :-
-    equiv([X|Xs], Other).
-builtin_equiv(['dip',[H|T],X|Xs], Other) :-
-    append([H|T], Xs, NewXs),
-    equiv([X|NewXs], Other).
+builtin_equiv(['p',Quote,X|Xs], Other) :-
+    equiv([[X|Quote]|Xs], Other).
+
+builtin_equiv(['c',Quote1,Quote2|Xs], Other) :-
+    append(Quote1, Quote2, NewQuote),
+    equiv([NewQuote|Xs], Other).
+
+builtin_equiv(['s',A,B|Xs], Other) :-
+    equiv([B,A|Xs],Other).
 
 builtin_equiv([], []).
 builtin_equiv([X|Xs], Other) :-
